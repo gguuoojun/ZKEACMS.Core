@@ -22,20 +22,12 @@ namespace ZKEACMS.Article.Service
         private readonly IArticleService _articleService;
         private readonly IPageService _pageService;
         public ArticleListWidgetService(IWidgetBasePartService widgetService, IArticleTypeService articleTypeService,
-            IArticleService articleService, IApplicationContext applicationContext, IPageService pageService, ArticleDbContext dbContext)
+            IArticleService articleService, IApplicationContext applicationContext, IPageService pageService, CMSDbContext dbContext)
             : base(widgetService, applicationContext, dbContext)
         {
             _articleTypeService = articleTypeService;
             _articleService = articleService;
             _pageService = pageService;
-        }
-
-        public override DbSet<ArticleListWidget> CurrentDbSet
-        {
-            get
-            {
-                return (DbContext as ArticleDbContext).ArticleListWidget;
-            }
         }
 
         private string GetDetailPageUrl()
@@ -49,21 +41,16 @@ namespace ZKEACMS.Article.Service
                     return page.Url;
                 }
             }
-            return "~/View-Article";
+            return "~/article-detail";
         }
 
-        public override void Add(ArticleListWidget item)
+        public override ServiceResult<ArticleListWidget> Add(ArticleListWidget item)
         {
             if (item.DetailPageUrl.IsNullOrEmpty())
             {
                 item.DetailPageUrl = GetDetailPageUrl();
             }
-            if (!item.PageSize.HasValue || item.PageSize.Value == 0)
-            {
-                item.PageSize = 5;
-            }
-            item.IsPageable = true;
-            base.Add(item);
+            return base.Add(item);
         }
 
         public override ArticleListWidget Get(params object[] primaryKeys)
@@ -116,13 +103,6 @@ namespace ZKEACMS.Article.Service
             else
             {
                 articles = _articleService.Get().Where(filter).OrderByDescending(m => m.PublishDate).ToList();
-            }
-
-            var currentArticleType = _articleTypeService.Get(cate == 0 ? currentWidget.ArticleTypeID : cate);
-            if (currentArticleType != null)
-            {
-                var page = actionContext.HttpContext.GetLayout().Page;
-                page.Title = (page.Title ?? "") + " - " + currentArticleType.Title;
             }
 
             return widget.ToWidgetViewModelPart(new ArticleListWidgetViewModel

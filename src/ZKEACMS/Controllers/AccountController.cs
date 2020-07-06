@@ -18,6 +18,8 @@ using Microsoft.AspNetCore.DataProtection;
 using ZKEACMS.Account;
 using Microsoft.Extensions.Logging;
 using Easy.Mvc.Extend;
+using ZKEACMS.Common.ViewModels;
+using Easy;
 
 namespace ZKEACMS.Controllers
 {
@@ -25,51 +27,62 @@ namespace ZKEACMS.Controllers
     {
         private readonly IUserService _userService;
         private readonly INotifyService _notifyService;
-        private readonly IDataProtector _dataProtector;
+        private readonly IDataProtectionProvider _dataProtectionProvider;
         private readonly IApplicationContextAccessor _applicationContextAccessor;
         private readonly ILogger<AccountController> _logger;
+        private readonly ILocalize _localize;
+
         public AccountController(IUserService userService,
             INotifyService notifyService,
             IDataProtectionProvider dataProtectionProvider,
             ILogger<AccountController> logger,
-            IApplicationContextAccessor applicationContextAccessor)
+            IApplicationContextAccessor applicationContextAccessor,
+            ILocalize localize)
         {
             _userService = userService;
             _notifyService = notifyService;
-            _dataProtector = dataProtectionProvider.CreateProtector("ResetPassword");
+            _dataProtectionProvider = dataProtectionProvider;
             _applicationContextAccessor = applicationContextAccessor;
             _logger = logger;
+            _localize = localize;
         }
         #region Admin
         public ActionResult Login()
         {
             return View();
         }
-        [HttpPost]
-        public async Task<ActionResult> Login(string userName, string password, string ReturnUrl)
+        [HttpPost, ValidateAntiForgeryToken]
+        public async Task<ActionResult> Login(AdminSignViewModel model, string ReturnUrl)
         {
-            var user = _userService.Login(userName, password, UserType.Administrator, Request.HttpContext.Connection.RemoteIpAddress.ToString());
-            if (user != null)
+            if (ModelState.IsValid)
             {
-
-                user.AuthenticationType = CookieAuthenticationDefaults.AuthenticationScheme;
-                var identity = new ClaimsIdentity(user);
-                identity.AddClaim(new Claim(ClaimTypes.Name, user.UserID));
-                await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
-
-                if (ReturnUrl.IsNullOrEmpty())
+                var user = _userService.Login(model.UserID, model.PassWord, UserType.Administrator, Request.HttpContext.Connection.RemoteIpAddress.ToString());
+                if (user != null)
                 {
-                    return RedirectToAction("Index", "Dashboard");
+
+                    user.AuthenticationType = DefaultAuthorizeAttribute.DefaultAuthenticationScheme;
+                    var identity = new ClaimsIdentity(user);
+                    identity.AddClaim(new Claim(ClaimTypes.Name, user.UserID));
+                    await HttpContext.SignInAsync(DefaultAuthorizeAttribute.DefaultAuthenticationScheme, new ClaimsPrincipal(identity));
+
+                    if (ReturnUrl.IsNullOrEmpty() || !Url.IsLocalUrl(ReturnUrl))
+                    {
+                        return RedirectToAction("Index", "Dashboard");
+                    }
+                    return Redirect(ReturnUrl);
                 }
-                return Redirect(ReturnUrl);
+                else
+                {
+                    ModelState.AddModelError("PassWord", _localize.Get("User name password is incorrect"));
+                }
             }
-            ViewBag.Errormessage = "登录失败，用户名密码不正确";
-            return View();
+
+            return View(model);
         }
 
         public async Task<ActionResult> Logout(string returnurl)
         {
-            await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            await HttpContext.SignOutAsync(DefaultAuthorizeAttribute.DefaultAuthenticationScheme);
             return Redirect(returnurl ?? "~/");
         }
         #endregion
@@ -85,7 +98,7 @@ namespace ZKEACMS.Controllers
         {
             return View(_applicationContextAccessor.Current.CurrentCustomer);
         }
-        [HttpPost, CustomerAuthorize]
+        [HttpPost, ValidateAntiForgeryToken, CustomerAuthorize]
         public ActionResult Edit(UserEntity user)
         {
             if (_applicationContextAccessor.Current.CurrentCustomer.UserID == user.UserID)
@@ -113,7 +126,7 @@ namespace ZKEACMS.Controllers
         {
             return View();
         }
-        [HttpPost, CustomerAuthorize]
+        [HttpPost, ValidateAntiForgeryToken, CustomerAuthorize]
         public ActionResult PassWord(UserEntity user)
         {
             var logOnUser = _userService.Login(_applicationContextAccessor.Current.CurrentCustomer.UserID, user.PassWord, UserType.Customer, Request.HttpContext.Connection.RemoteIpAddress.ToString());
@@ -123,7 +136,7 @@ namespace ZKEACMS.Controllers
                 _userService.Update(logOnUser);
                 return RedirectToAction("SignOut", new { returnurl = "~/Account/SignIn" });
             }
-            ViewBag.Message = "原密码错误";
+            ViewBag.Message = _localize.Get("Current password is not correct.");
             return View();
         }
         public ActionResult SignIn(string ReturnUrl)
@@ -131,10 +144,10 @@ namespace ZKEACMS.Controllers
             ViewBag.ReturnUrl = ReturnUrl;
             return View();
         }
-        [HttpPost]
-        public async Task<ActionResult> SignIn(string userName, string password, string ReturnUrl)
+        [HttpPost, ValidateAntiForgeryToken]
+        public async Task<ActionResult> SignIn(string email, string password, string ReturnUrl)
         {
-            var user = _userService.Login(userName, password, UserType.Customer, Request.HttpContext.Connection.RemoteIpAddress.ToString());
+            var user = _userService.Login(email, password, UserType.Customer, Request.HttpContext.Connection.RemoteIpAddress.ToString());
             if (user != null)
             {
                 user.AuthenticationType = CustomerAuthorizeAttribute.CustomerAuthenticationScheme;
@@ -142,13 +155,13 @@ namespace ZKEACMS.Controllers
                 identity.AddClaim(new Claim(ClaimTypes.Name, user.UserID));
                 await HttpContext.SignInAsync(CustomerAuthorizeAttribute.CustomerAuthenticationScheme, new ClaimsPrincipal(identity));
 
-                if (ReturnUrl.IsNullOrEmpty())
+                if (ReturnUrl.IsNullOrEmpty() || !Url.IsLocalUrl(ReturnUrl))
                 {
                     return RedirectToAction("Index");
                 }
                 return Redirect(ReturnUrl);
             }
-            ViewBag.Errormessage = "登录失败，用户名密码不正确";
+            ViewBag.Errormessage = _localize.Get("User name password is incorrect");
             ViewBag.ReturnUrl = ReturnUrl;
             return View();
         }
@@ -162,12 +175,13 @@ namespace ZKEACMS.Controllers
             }
             return RedirectToAction("SignIn");
         }
-        public ActionResult SignUp()
+        public ActionResult SignUp(string ReturnUrl)
         {
+            ViewBag.ReturnUrl = ReturnUrl;
             return View(new UserEntity());
         }
-        [HttpPost]
-        public ActionResult SignUp(UserEntity user)
+        [HttpPost, ValidateAntiForgeryToken]
+        public ActionResult SignUp(UserEntity user, string ReturnUrl)
         {
             if (user.UserName.IsNotNullAndWhiteSpace() && user.PassWord.IsNotNullAndWhiteSpace() && user.Email.IsNotNullAndWhiteSpace())
             {
@@ -179,11 +193,12 @@ namespace ZKEACMS.Controllers
                 catch (Exception ex)
                 {
                     ViewBag.Errormessage = ex.Message;
+                    ViewBag.ReturnUrl = ReturnUrl;
                     return View(user);
                 }
 
             }
-            return RedirectToAction("SignUpSuccess");
+            return RedirectToAction("SignUpSuccess", new { ReturnUrl });
         }
         public ActionResult SignUpSuccess()
         {
@@ -194,7 +209,7 @@ namespace ZKEACMS.Controllers
         {
             return View();
         }
-        [HttpPost]
+        [HttpPost, ValidateAntiForgeryToken]
         public ActionResult Forgotten(string Email)
         {
             if (Email.IsNotNullAndWhiteSpace())
@@ -218,24 +233,26 @@ namespace ZKEACMS.Controllers
         {
             try
             {
-                if (pt.IsNullOrWhiteSpace() || _dataProtector.Unprotect(pt) != token)
+                var dataProtector = _dataProtectionProvider.CreateProtector("ResetPassword");
+                if (pt.IsNullOrWhiteSpace() || dataProtector.Unprotect(pt) != token)
                 {
-                    ViewBag.Errormessage = "访问的重置链接无效，请重新申请";
+                    ViewBag.Errormessage = _localize.Get("Invalid request");
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex.ToString());
-                ViewBag.Errormessage = "访问的重置链接无效，请重新申请";
+                ViewBag.Errormessage = _localize.Get("Invalid request");
             }
             return View(new ResetViewModel { ResetToken = token, Protect = pt });
         }
-        [HttpPost]
+        [HttpPost, ValidateAntiForgeryToken]
         public ActionResult Reset(ResetViewModel user)
         {
             try
             {
-                if (user.Protect.IsNotNullAndWhiteSpace() && _dataProtector.Unprotect(user.Protect) == user.ResetToken)
+                var dataProtector = _dataProtectionProvider.CreateProtector("ResetPassword");
+                if (user.Protect.IsNotNullAndWhiteSpace() && dataProtector.Unprotect(user.Protect) == user.ResetToken)
                 {
                     if (_userService.ResetPassWord(user.ResetToken, user.PassWordNew))
                     {
@@ -247,7 +264,7 @@ namespace ZKEACMS.Controllers
             {
                 _logger.LogError(ex.ToString());
             }
-            ViewBag.Errormessage = "重置密码失败";
+            ViewBag.Errormessage = _localize.Get("Reset password failed!");
             return View(user);
         }
         #endregion

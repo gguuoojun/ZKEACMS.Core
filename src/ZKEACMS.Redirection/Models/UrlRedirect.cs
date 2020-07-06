@@ -1,6 +1,7 @@
-﻿using Easy.LINQ;
+using Easy.LINQ;
 using Easy.MetaData;
 using Easy.Models;
+using Easy.RepositoryPattern;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -11,7 +12,7 @@ using ZKEACMS.Extend;
 
 namespace ZKEACMS.Redirection.Models
 {
-    [Table("CMS_Redirection")]
+    [DataTable("CMS_Redirection")]
     public class UrlRedirect : EditorEntity
     {
         [Key]
@@ -28,6 +29,7 @@ namespace ZKEACMS.Redirection.Models
             ViewConfig(m => m.Title).AsTextBox().Order(0).Required().MaxLength(200).ShowInGrid().Search(Query.Operators.Contains);
             ViewConfig(m => m.InComingUrl).AsTextBox().Order(1).Required().MaxLength(500).PageSelector().ShowInGrid().Search(Query.Operators.Contains);
             ViewConfig(m => m.DestinationURL).AsTextBox().Order(2).Required().MaxLength(500).PageSelector().ShowInGrid().Search(Query.Operators.Contains);
+            ViewConfig(m => m.Description).AsTextArea().Search(Query.Operators.Contains);
         }
     }
 }

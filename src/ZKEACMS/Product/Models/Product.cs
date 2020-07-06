@@ -8,10 +8,12 @@ using ZKEACMS.ExtendField;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.ComponentModel.DataAnnotations;
 using Easy.LINQ;
+using ZKEACMS.Extend;
+using Easy.RepositoryPattern;
 
 namespace ZKEACMS.Product.Models
 {
-    [Table("Product")]
+    [DataTable("Product")]
     public class ProductEntity : EditorEntity, IImage
     {
         public ProductEntity()
@@ -36,7 +38,7 @@ namespace ZKEACMS.Product.Models
         /// <summary>
         /// 类别
         /// </summary>
-        public int? ProductCategoryID { get; set; }
+        public int ProductCategoryID { get; set; }
 
         public string PartNumber { get; set; }
         /// <summary>
@@ -46,14 +48,17 @@ namespace ZKEACMS.Product.Models
         /// <summary>
         /// 销售价格
         /// </summary>
+        [Column(TypeName = "decimal(18,4)")]
         public decimal? Price { get; set; }
         /// <summary>
         /// 折扣价格
         /// </summary>
+        [Column(TypeName = "decimal(18,4)")]
         public decimal? RebatePrice { get; set; }
         /// <summary>
         /// 进价，成本价
         /// </summary>
+        [Column(TypeName = "decimal(18,4)")]
         public decimal? PurchasePrice { get; set; }
         /// <summary>
         /// 规格
@@ -92,18 +97,17 @@ namespace ZKEACMS.Product.Models
             ViewConfig(m => m.ID).AsHidden();
             ViewConfig(m => m.TargetFrom).AsHidden();
             ViewConfig(m => m.TargetUrl).AsHidden();
-            ViewConfig(m => m.Url).AsHidden();
             ViewConfig(m => m.Title).AsTextBox().Required().Order(0).ShowInGrid().Search(Query.Operators.Contains);
-            ViewConfig(m => m.ImageUrl).AsTextBox().Required().AddClass(StringKeys.SelectImageClass).AddProperty("data-url", Urls.SelectMedia);
-            ViewConfig(m => m.ImageThumbUrl).AsTextBox().Required().AddClass(StringKeys.SelectImageClass).AddProperty("data-url", Urls.SelectMedia);
+            ViewConfig(m => m.Url).AsTextBox().Order(1).MaxLength(100).UrlPart().Required();
+            ViewConfig(m => m.ImageUrl).AsTextBox().Required().MediaSelector();
+            ViewConfig(m => m.ImageThumbUrl).AsTextBox().Required().MediaSelector();
             ViewConfig(m => m.PartNumber).AsTextBox().ShowInGrid().Search(Query.Operators.Contains);
             ViewConfig(m => m.BrandCD).AsHidden();
             ViewConfig(m => m.ProductCategoryID)
                 .AsDropDownList()
                 .Required()
                 .DataSource(ViewDataKeys.ProductCategory, SourceType.ViewData)
-                .AddClass("select")
-                .AddProperty("data-url", "/admin/ProductCategory/Select")
+                .SetTemplate("ProductCategoryTree")
                 .ShowInGrid();
 
             ViewConfig(m => m.ProductTags).AsTextBox().SetTemplate("TagSelector");

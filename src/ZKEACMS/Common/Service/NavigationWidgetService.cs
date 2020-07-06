@@ -23,38 +23,60 @@ namespace ZKEACMS.Common.Service
         {
             _navigationService = navigationService;
         }
-
-        public override DbSet<NavigationWidget> CurrentDbSet
-        {
-            get
-            {
-                return (DbContext as CMSDbContext).NavigationWidget;
-            }
-        }
-
+        public override DbSet<NavigationWidget> CurrentDbSet => DbContext.NavigationWidget;
         public override WidgetViewModelPart Display(WidgetBase widget, ActionContext actionContext)
         {
             var currentWidget = widget as NavigationWidget;
             var navs = _navigationService.Get()
                 .Where(m => m.Status == (int)RecordStatus.Active).OrderBy(m => m.DisplayOrder).ToList();
-            string path = actionContext.HttpContext.Request.Path.Value.ToLower();
-            NavigationEntity current = null;
-            int length = 0;
-            IUrlHelper urlHelper = ((actionContext as ActionExecutedContext).Controller as Controller).Url;
-            foreach (var navigationEntity in navs)
+
+            string path = null;
+            IUrlHelper urlHelper = null;
+            if (ApplicationContext.As<CMSApplicationContext>().IsDesignMode)
             {
-                if (navigationEntity.Url.IsNotNullAndWhiteSpace()
-                    && path.StartsWith(urlHelper.PathContent(navigationEntity.Url).ToLower())
-                    && length < navigationEntity.Url.Length)
+                var layout = actionContext.HttpContext.GetLayout();
+                if (layout != null && layout.Page != null)
                 {
-                    current = navigationEntity;
-                    length = navigationEntity.Url.Length;
+                    path = layout.Page.Url.Replace("~/", "/");
                 }
             }
-            if (current != null)
+            else if (actionContext is ActionExecutedContext)
             {
-                current.IsCurrent = true;
+                path = (actionContext as ActionExecutedContext).HttpContext.Request.Path.Value.Replace(".html", string.Empty);
+                urlHelper = ((actionContext as ActionExecutedContext).Controller as Controller).Url;
             }
+            if (urlHelper == null && (actionContext is ActionExecutedContext))
+            {
+                urlHelper = ((actionContext as ActionExecutedContext).Controller as Controller).Url;
+            }
+
+            if (path != null)
+            {
+                NavigationEntity current = null;
+                int length = 0;
+                foreach (var navigationEntity in navs)
+                {
+                    string url = (navigationEntity.Url ?? "~/").Replace(".html", string.Empty);
+                    if (urlHelper != null)
+                    {
+                        url = urlHelper.Content(url);
+                    }
+                    else
+                    {
+                        url = url.Replace("~/", "/");
+                    }
+                    if (path.IndexOf(url, StringComparison.OrdinalIgnoreCase) == 0 && length < url.Length)
+                    {
+                        current = navigationEntity;
+                        length = url.Length;
+                    }
+                }
+                if (current != null)
+                {
+                    current.IsCurrent = true;
+                }
+            }
+
 
             if (currentWidget.RootID.IsNullOrEmpty() || currentWidget.RootID == "root")
             {

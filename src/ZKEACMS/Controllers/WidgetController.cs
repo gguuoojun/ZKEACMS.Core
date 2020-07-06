@@ -21,6 +21,7 @@ using Easy.Modules.DataDictionary;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Hosting;
 using Easy.Mvc.Extend;
+using Microsoft.Extensions.Options;
 
 namespace ZKEACMS.Controllers
 {
@@ -33,9 +34,12 @@ namespace ZKEACMS.Controllers
         private readonly IPackageInstallerProvider _packageInstallerProvider;
         private readonly IWidgetActivator _widgetActivator;
         private readonly IPageService _pageService;
+        private readonly ILocalize _localize;
 
         public WidgetController(IWidgetBasePartService widgetService, IWidgetTemplateService widgetTemplateService,
-            ICookie cookie, IPackageInstallerProvider packageInstallerProvider, IWidgetActivator widgetActivator, IPageService pageService)
+            ICookie cookie, IPackageInstallerProvider packageInstallerProvider, IWidgetActivator widgetActivator,
+            IPageService pageService,
+            ILocalize localize)
         {
             _widgetService = widgetService;
             _widgetTemplateService = widgetTemplateService;
@@ -43,8 +47,22 @@ namespace ZKEACMS.Controllers
             _packageInstallerProvider = packageInstallerProvider;
             _widgetActivator = widgetActivator;
             _pageService = pageService;
+            _localize = localize;
         }
-
+        private void SetDataSource(WidgetBase widget)
+        {
+            var dataSourceSetting = HttpContext.RequestServices.GetService(typeof(IOptions<>).MakeGenericType(widget.GetType())) as IOptions<WidgetBase>;
+            if (dataSourceSetting != null)
+            {
+                widget.DataSourceLink = dataSourceSetting.Value.DataSourceLink;
+                widget.DataSourceLinkTitle = dataSourceSetting.Value.DataSourceLinkTitle;
+            }
+            else
+            {
+                widget.DataSourceLink = string.Empty;
+                widget.DataSourceLinkTitle = string.Empty;
+            }
+        }
         [ViewDataZones]
         public ActionResult Create(QueryContext context)
         {
@@ -58,11 +76,11 @@ namespace ZKEACMS.Controllers
             {
                 widget.Position = _widgetService.GetAllByPage(_pageService.Get(context.PageID)).Count(m => m.ZoneID == context.ZoneID) + 1;
             }
-            else
+            else if (context.LayoutID.IsNotNullAndWhiteSpace())
             {
                 widget.Position = _widgetService.GetByLayoutId(context.LayoutID).Count(m => m.ZoneID == context.ZoneID) + 1;
             }
-            ViewBag.WidgetTemplateName = template.Title;
+            SetDataSource(widget);
             ViewBag.ReturnUrl = context.ReturnUrl;
             if (template.FormView.IsNotNullAndWhiteSpace())
             {
@@ -97,16 +115,9 @@ namespace ZKEACMS.Controllers
         {
             var widgetBase = _widgetService.Get(ID);
             var widget = _widgetActivator.Create(widgetBase).GetWidget(widgetBase);
+            SetDataSource(widget);
             ViewBag.ReturnUrl = ReturnUrl;
 
-            var template = _widgetTemplateService.Get(
-                m =>
-                    m.PartialView == widget.PartialView && m.AssemblyName == widget.AssemblyName &&
-                    m.ServiceTypeName == widget.ServiceTypeName && m.ViewModelTypeName == widget.ViewModelTypeName).FirstOrDefault();
-            if (template != null)
-            {
-                ViewBag.WidgetTemplateName = template.Title;
-            }
             if (widget.FormView.IsNotNullAndWhiteSpace())
             {
                 return View(widget.FormView, widget);
@@ -163,13 +174,27 @@ namespace ZKEACMS.Controllers
         }
 
         [HttpPost]
-        public PartialViewResult AppendWidget(WidgetBase widget)
+        public IActionResult AppendWidget(WidgetBase widget)
         {
+            if (widget == null || widget.PageID.IsNullOrWhiteSpace())
+            {
+                return NotFound();
+            }
+            //set design environment
             HttpContext.RequestServices.GetService<IApplicationContextAccessor>().Current.PageMode = Filter.PageViewMode.Design;
-            var widgetPart = _widgetService.ApplyTemplate(widget, ControllerContext);
+            var page = HttpContext.RequestServices.GetService<IPageService>().Get(widget.PageID);
+            WidgetViewModelPart widgetPart = null;
+            if (page != null)
+            {
+                var layout = HttpContext.RequestServices.GetService<Layout.ILayoutService>().Get(page.LayoutId);
+                layout.Page = page;
+                ControllerContext.HttpContext.TrySetLayout(layout);
+
+                widgetPart = _widgetService.ApplyTemplate(widget, ControllerContext);
+            }
             if (widgetPart == null)
             {
-                widgetPart = new HtmlWidget { PartialView = "Widget.HTML", HTML = "<h1 class='text-danger'><hr/>操作失败，找不到数据源，刷新页面后该消息会消失。<hr/></h1>" }.ToWidgetViewModelPart();
+                widgetPart = new HtmlWidget { PartialView = "Widget.HTML", HTML = "<h1 class='text-danger'><hr/>Error<hr/></h1>" }.ToWidgetViewModelPart();
             }
             return PartialView("AppendWidget", new DesignWidgetViewModel(widgetPart, widget.PageID));
         }
@@ -239,7 +264,7 @@ namespace ZKEACMS.Controllers
         {
             var dataDictionaryService = HttpContext.RequestServices.GetService<IDataDictionaryService>();
             var dataDictionary = dataDictionaryService.Get(ID);
-            var installer = new DataDictionaryPackageInstaller(HttpContext.RequestServices.GetService<IHostingEnvironment>(), dataDictionaryService);
+            var installer = new DataDictionaryPackageInstaller(HttpContext.RequestServices.GetService<IWebHostEnvironment>(), dataDictionaryService);
             if (filePath != null && filePath.Any())
             {
                 installer.OnPacking = () =>
@@ -281,11 +306,11 @@ namespace ZKEACMS.Controllers
         public JsonResult Copy(string widgetId)
         {
             _cookie.SetValue(Const.CopyWidgetCookie, widgetId, true, true);
-            return Json(new AjaxResult { Status = AjaxStatus.Normal, Message = "复制成功，请到需要的页面区域粘贴！" });
+            return Json(new AjaxResult { Status = AjaxStatus.Normal, Message = _localize.Get("Copy success") });
         }
 
         [HttpPost]
-        public PartialViewResult Paste(WidgetBase widget)
+        public IActionResult Paste(WidgetBase widget)
         {
             widget.ID = _cookie.GetValue<string>(Const.CopyWidgetCookie);
             return AppendWidget(widget);

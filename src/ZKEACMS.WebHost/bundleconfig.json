@@ -162,9 +162,33 @@
     ]
   },
   {
-    "outputFileName": "wwwroot/js/FileUploader.min.js",
+    "outputFileName": "wwwroot/js/tinymce/plugins/filebrowser/plugin.min.js",
     "inputFiles": [
-      "wwwroot/js/FileUploader.js"
+      "wwwroot/js/tinymce/plugins/filebrowser/plugin.js"
+    ]
+  },
+  {
+    "outputFileName": "wwwroot/js/tinymce/plugins/imagelocal/plugin.min.js",
+    "inputFiles": [
+      "wwwroot/js/tinymce/plugins/imagelocal/plugin.js"
+    ]
+  },
+  {
+    "outputFileName": "wwwroot/css/rule.min.css",
+    "inputFiles": [
+      "wwwroot/css/rule.css"
+    ]
+  },
+  {
+    "outputFileName": "wwwroot/lib/jquery-validation/dist/additional-methods.min.js",
+    "inputFiles": [
+      "wwwroot/lib/jquery-validation/dist/additional-methods.js"
+    ]
+  },
+  {
+    "outputFileName": "wwwroot/lib/codemirror/addon/format/autoformat.min.js",
+    "inputFiles": [
+      "wwwroot/lib/codemirror/addon/format/autoformat.js"
     ]
   }
 ]

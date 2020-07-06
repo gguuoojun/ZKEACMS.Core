@@ -10,24 +10,37 @@ namespace ZKEACMS.Controllers
         public ErrorController()
         {
         }
-        public ActionResult Index()
+        public IActionResult Index(int? code)
         {
-            Response.StatusCode = 500;
-            return View();
+            var result = View("Index");
+            result.StatusCode = code ?? 500;
+            return result;
         }
 
-        public ActionResult NotFond()
+        public IActionResult NotFond()
         {
-            Response.StatusCode = 404;
-            //Response.TrySkipIisCustomErrors = true;
-            return View();
+            var result = View("NotFound");
+            result.StatusCode = 404;
+            return result;
         }
 
-        public ActionResult Forbidden()
+        public IActionResult Forbidden()
         {
-            Response.StatusCode = 403;
-            //Response.TrySkipIisCustomErrors = true;
-            return View();
+            var result = View("Forbidden");
+            result.StatusCode = 403;
+            return result;
+        }
+        public IActionResult Code(int code)
+        {
+            if (code == 404)
+            {
+                return NotFond();
+            }
+            else if (code == 403)
+            {
+                return Forbidden();
+            }
+            return Index(code);
         }
     }
 }

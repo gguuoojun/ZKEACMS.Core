@@ -5,23 +5,34 @@ using Easy.RepositoryPattern;
 using ZKEACMS.Widget;
 using Microsoft.AspNetCore.Html;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Easy.Mvc.Extend;
+using System;
 
 namespace ZKEACMS
 {
     public static class HtmlHelperExtend
     {
-        public static IHtmlContent DisPlayWidget(this IHtmlHelper html, WidgetViewModelPart widget)
+        public static async Task<IHtmlContent> DisplayWidget(this IHtmlHelper html, WidgetViewModelPart widget)
         {
             if (widget.ViewModel != null)
             {
-                return html.Partial(widget.Widget.PartialView, widget.ViewModel);
+                return await html.PartialAsync("DisplayWidget", widget);
             }
-            return html.WidgetError();
+            return await html.WidgetError();
         }
-
-        public static IHtmlContent DesignWidget(this IHtmlHelper html, DesignWidgetViewModel viewModel)
+        public static async Task<IHtmlContent> DisplayWidgetPart(this IHtmlHelper html, WidgetViewModelPart widget)
         {
-            return html.Partial("DesignWidget", viewModel);
+            if (widget.ViewModel != null)
+            {
+                return await html.PartialAsync(widget.Widget.PartialView, widget.ViewModel);
+            }
+            return await html.WidgetError();
+        }
+        public static async Task<IHtmlContent> DesignWidget(this IHtmlHelper html, DesignWidgetViewModel viewModel)
+        {
+            return await html.PartialAsync("DesignWidget", viewModel);
         }
         public static IHtmlContent SmartLink(this IHtmlHelper html, string link, string text, string cssClass = null)
         {
@@ -53,18 +64,66 @@ namespace ZKEACMS
             return true;
         }
 
-        public static IHtmlContent WidgetError(this IHtmlHelper html)
+        public static async Task<IHtmlContent> WidgetError(this IHtmlHelper html)
         {
-            return html.Partial("Widget.Error");
+            return await html.PartialAsync("Widget.Error");
         }
 
-        public static void Pagin(this IHtmlHelper html, Pagination pagin)
+        public static async Task Pagin(this IHtmlHelper html, Pagination pagin)
         {
-            html.RenderPartial("Partial_Pagination", pagin);
+            await html.RenderPartialAsync("Partial_Pagination", pagin);
         }
-        public static void Pagin(this IHtmlHelper html, Pagin pagin)
+        public static async Task Pagin(this IHtmlHelper html, Pagin pagin)
         {
-            html.RenderPartial("Partial_RegularPagination", pagin);
+            await html.RenderPartialAsync("Partial_RegularPagination", pagin);
+        }
+        public static IHtmlContent SearchTerms(this IHtmlHelper html, bool createAble)
+        {
+            return html.SearchTerms(createAble, "Create");
+        }
+        public static IHtmlContent SearchTerms(this IHtmlHelper html, bool createAble, string createAction)
+        {
+            html.ViewBag.CreateAble = createAble;
+            html.ViewBag.CreateAction = createAction;
+            return html.Editor(string.Empty, "Search-Terms");
+        }
+
+        public static IHtmlContent SearchItem(this IHtmlHelper html, ModelMetadata item)
+        {
+            var descriptor = item.GetViewDescriptor();
+            if (descriptor is Easy.ViewPort.Descriptor.DropDownListDescriptor)
+            {
+                return html.Editor(item.PropertyName, "DropDownList");
+            }
+            else
+            {
+                if (!descriptor.Classes.Contains("form-control"))
+                {
+                    descriptor.Classes.Add("form-control");
+                }
+                Type modelType = descriptor.DataType;
+
+                if (modelType == typeof(DateTime))
+                {
+                    return html.Editor(item.PropertyName, "DateTime");
+                }
+                else if (modelType == typeof(bool))
+                {
+                    return html.Editor(item.PropertyName, "DropdownBoolen");
+                }
+                else if (modelType == typeof(decimal))
+                {
+                    return html.Editor(item.PropertyName, "Decimal");
+                }
+                else if (modelType == typeof(int))
+                {
+                    return html.Editor(item.PropertyName, "Int32");
+                }
+                else
+                {
+                    return html.Editor(item.PropertyName, "String");
+                }
+            }
         }
     }
 }

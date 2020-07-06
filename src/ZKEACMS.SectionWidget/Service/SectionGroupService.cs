@@ -15,29 +15,24 @@ using Easy.Mvc.Plugin;
 
 namespace ZKEACMS.SectionWidget.Service
 {
-    public class SectionGroupService : ServiceBase<SectionGroup>, ISectionGroupService
+    public class SectionGroupService : ServiceBase<SectionGroup, CMSDbContext>, ISectionGroupService
     {
         private readonly ISectionContentProviderService _sectionContentProviderService;
         private readonly IPluginLoader _pluginLoader;
 
         public SectionGroupService(ISectionContentProviderService sectionContentProviderService,
-            IPluginLoader pluginLoader, IApplicationContext applicationContext, SectionDbContext dbContext) : base(applicationContext, dbContext)
+            IPluginLoader pluginLoader, IApplicationContext applicationContext, CMSDbContext dbContext) : base(applicationContext, dbContext)
         {
             _sectionContentProviderService = sectionContentProviderService;
             _pluginLoader = pluginLoader;
         }
-
-        public override DbSet<SectionGroup> CurrentDbSet
+        public override IQueryable<SectionGroup> Get()
         {
-            get
-            {
-                return (DbContext as SectionDbContext).SectionGroup;
-            }
+            return CurrentDbSet.AsNoTracking();
         }
-
         public SectionGroup GenerateContentFromConfig(SectionGroup group)
         {
-            string configFile = PluginBase.GetPath<SectionPlug>() + @"\Thumbnail\{0}.xml".FormatWith(group.PartialView).ToFilePath();
+            string configFile = PluginBase.GetPath<SectionPlug>().CombinePath("Thumbnail/{0}.xml".FormatWith(group.PartialView).ToFilePath());
             List<SectionContent> contents = new List<SectionContent>();
             if (File.Exists(configFile))
             {
@@ -79,10 +74,14 @@ namespace ZKEACMS.SectionWidget.Service
             group.SectionContents = contents;
             return group;
         }
-        public override void Add(SectionGroup item)
+        public override ServiceResult<SectionGroup> Add(SectionGroup item)
         {
             item.ID = Guid.NewGuid().ToString("N");
-            base.Add(item);
+            var result = base.Add(item);
+            if (result.HasViolation)
+            {
+                return result;
+            }
             if (item.SectionContents != null && item.SectionContents.Any())
             {
                 item.SectionContents.Each(m =>
@@ -103,8 +102,9 @@ namespace ZKEACMS.SectionWidget.Service
                     });
                 }
             }
+            return result;
         }
-        public override void Remove(SectionGroup item, bool saveImmediately = true)
+        public override void Remove(SectionGroup item)
         {
             if (item != null)
             {
@@ -114,7 +114,7 @@ namespace ZKEACMS.SectionWidget.Service
                     _sectionContentProviderService.Remove(m.ID);
                 });
             }
-            base.Remove(item, saveImmediately);
+            base.Remove(item);
         }
     }
 }

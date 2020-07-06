@@ -6,6 +6,26 @@ using System.Text.RegularExpressions;
 
 namespace ZKEACMS
 {
+    public class Const
+    {
+        public const string CopyWidgetCookie = "032F84D1BA204DC88F1C2694BF41F989";
+    }
+
+    public class Layouts
+    {
+        public const string PageDesign = "_DesignPageLayout";
+        public const string LayoutDesign = "_DesignLayout";
+        public const string Default = "_Layout";
+        public const string NormalDefault = "_LayoutNormal";
+        public const string PopUp = "_PopUpLayout";
+        public const string ClientPopUp = "_PopUpClientLayout";
+        public const string CustomerCenter = "_CustomerCenterLayout";
+        public const string EmptyLayout = "_EmptyLayout";
+
+        public const string ThemeLayout = "~/wwwroot/themes/{0}/Views/_Layout.cshtml";
+        public const string ThemeSharedLayout = "~/wwwroot/themes/{0}/Views/Shared/_Layout.cshtml";
+    }
+
     public class ViewDataKeys
     {
         public const string Zones = "ViewDataKey_Zones";
@@ -31,7 +51,7 @@ namespace ZKEACMS
     {
         public const string SelectPage = "/admin/page/select";
         public const string SelectMedia = "/admin/Media/Select";
-        public const string StyleEditor = "/js/StyleEditor/index.html";
+        public const string StyleEditor = "/admin/StyleEditor/Edit";
     }
 
     public enum MediaType
@@ -89,11 +109,19 @@ namespace ZKEACMS
         public const string SelectPageClass = "select select-page";
         public const string StyleEditor = "select custom-style-target";
         public const string HtmlEditorClass = "html";
+        public const string DynamicHtmlEditorClass = "dy-editor";
+        public const string UrlPart = "url-part";
 
         public const string RouteValue_Path = "path";
         public const string RouteValue_Post = "post";
         public const string RouteValue_Category = "cate";
         public const string RouteValue_Page = "p";
+
+        public const string RouteVale_ArticleUrl = "ArticleUrl";
+        public const string RouteVale_Article = "Article-{0}";
+        public const string RouteVale_ProductUrl = "ProductUrl";
+        public const string RouteVale_Product = "Product-{0}";
+        public const string RouteVale_CategoryUrl = "CategoryUrl";
 
         public static string PathFormat(string routeKey)
         {
@@ -103,11 +131,11 @@ namespace ZKEACMS
 
     public static class CustomRegex
     {
-        public static readonly Regex StyleRegex = new Regex(@"style=""([^""]*)""", RegexOptions.IgnoreCase);
+        public static readonly Regex StyleRegex = new Regex(@"style=""([^""]*)""", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-        public static Regex PostIdRegex = new Regex(@"/post-(\d+)", RegexOptions.IgnoreCase);
-        public static Regex CategoryIdRegex = new Regex(@"/cate-(\d+)", RegexOptions.IgnoreCase);
-        public static Regex PageRegex = new Regex(@"/p-(\d+)", RegexOptions.IgnoreCase);
+        public static Regex PostIdRegex = new Regex(@"/post-(\d+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        public static Regex CategoryIdRegex = new Regex(@"/cate-(\d+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        public static Regex PageRegex = new Regex(@"/p-(\d+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     }
     public static class Version
     {
@@ -124,9 +152,22 @@ namespace ZKEACMS
                 return _version;
             }
         }
+        static string _versionInfo;
+        public static string VersionInfo
+        {
+            get
+            {
+                if (_versionInfo == null)
+                {
+                    var attr = typeof(Version).GetTypeInfo().Assembly.GetCustomAttribute(typeof(AssemblyInformationalVersionAttribute)) as AssemblyInformationalVersionAttribute;
+                    _versionInfo = attr.InformationalVersion;
+                }
+                return _versionInfo;
+            }
+        }
         public static string Rank
         {
-            get { return "Basic"; }
+            get { return "Community"; }
         }
     }
 }

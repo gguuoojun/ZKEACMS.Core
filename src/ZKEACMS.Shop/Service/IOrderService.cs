@@ -1,4 +1,4 @@
-﻿using Easy.RepositoryPattern;
+using Easy.RepositoryPattern;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,5 +11,10 @@ namespace ZKEACMS.Shop.Service
     {
         void BeginPay(Order order);
         void CompletePay(Order order, string paymentGateway, string paymentID);
+
+        PaymentInfo GetPaymentInfo(string orderId);
+        ServiceResult<bool> Refund(string orderId, decimal amount, string reason);
+        RefundInfo GetRefund(string orderId);
+        ServiceResult<bool> CloseOrder(string orderId);
     }
 }

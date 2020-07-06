@@ -14,10 +14,12 @@ using System.Linq.Expressions;
 using System.Text;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.EntityFrameworkCore;
 
 namespace ZKEACMS.Widget
 {
-    public abstract class WidgetService<T> : ServiceBase<T>, IWidgetPartDriver where T : WidgetBase
+    public abstract class WidgetService<T> : ServiceBase<T, CMSDbContext>, IWidgetPartDriver 
+        where T : WidgetBase
     {
         public WidgetService(IWidgetBasePartService widgetBasePartService, IApplicationContext applicationContext, CMSDbContext dbContext)
             : base(applicationContext, dbContext)
@@ -31,33 +33,60 @@ namespace ZKEACMS.Widget
             get { return WidgetBasePartService.IsNeedNotifyChange; }
             set { WidgetBasePartService.IsNeedNotifyChange = value; }
         }
-        public override void Add(T item)
+        public override IQueryable<T> Get()
         {
-            item.ID = Guid.NewGuid().ToString("N");
-            WidgetBasePartService.Add(item.ToWidgetBasePart());
-            try
+            return CurrentDbSet.AsNoTracking();
+        }
+        public override ServiceResult<T> Add(T item)
+        {
+            ServiceResult<T> result = null;
+            BeginTransaction(() =>
             {
-                base.Add(item);
-            }
-            catch (Exception ex)
-            {
-                WidgetBasePartService.Remove(item.ID);
-                throw ex;
-            }
+                var id = Guid.NewGuid().ToString("N");
+                var basePart = item.ToWidgetBasePart();
+                basePart.ID = id;
+                WidgetBasePartService.Add(basePart);
+                try
+                {
+                    item.ID = basePart.ID;
+                    result = base.Add(item);
+                }
+                catch (Exception ex)
+                {
+                    WidgetBasePartService.Remove(item.ID);
+                    throw ex;
+                }
+            });
+            return result;
         }
 
-        public override void Update(T item, bool saveImmediately = true)
+        public override ServiceResult<T> Update(T item)
         {
-            WidgetBasePartService.Update(item.ToWidgetBasePart());
-
-            base.Update(item, saveImmediately);
+            ServiceResult<T> result = null;
+            BeginTransaction(() =>
+            {
+                var basePart = WidgetBasePartService.Get(item.ID);
+                item.CopyTo(basePart);
+                WidgetBasePartService.Update(basePart);
+                result = base.Update(item);
+            });
+            return result;
         }
-        public override void UpdateRange(params T[] items)
+        public override ServiceResult<T> UpdateRange(params T[] items)
         {
-
-            WidgetBasePartService.UpdateRange(items.Select(m => m.ToWidgetBasePart()).ToArray());
-
-            base.UpdateRange(items);
+            var ids = items.Select(m => m.ID).ToArray();
+            var baseParts = WidgetBasePartService.Get(m => ids.Contains(m.ID));
+            foreach (var item in items)
+            {
+                item.CopyTo(baseParts.FirstOrDefault(m => m.ID == item.ID));
+            }
+            ServiceResult<T> result = null;
+            BeginTransaction(() =>
+            {
+                WidgetBasePartService.UpdateRange(baseParts.ToArray());
+                result = base.UpdateRange(items);
+            });
+            return result;
         }
         public override T GetSingle(Expression<Func<T, bool>> filter)
         {
@@ -98,27 +127,32 @@ namespace ZKEACMS.Widget
 
         public override void Remove(Expression<Func<T, bool>> filter)
         {
-            base.Remove(filter);
+            BeginTransaction(() =>
+            {
+                base.Remove(filter);
 
-            WidgetBasePartService.Remove(Expression.Lambda<Func<WidgetBase, bool>>(filter.Body, filter.Parameters));
-
+                WidgetBasePartService.Remove(Expression.Lambda<Func<WidgetBase, bool>>(filter.Body, filter.Parameters));
+            });
         }
 
-        public override void Remove(T item, bool saveImmediately = true)
+        public override void Remove(T item)
         {
+            BeginTransaction(() =>
+            {
+                base.Remove(item);
 
-            base.Remove(item, saveImmediately);
-
-            WidgetBasePartService.Remove(item.ToWidgetBasePart());
-
+                WidgetBasePartService.Remove(item.ID);
+            });
         }
         public override void RemoveRange(params T[] items)
         {
-
-            base.RemoveRange(items);
-
-            WidgetBasePartService.RemoveRange(items.Select(m => m.ToWidgetBasePart()).ToArray());
-
+            BeginTransaction(() =>
+            {
+                base.RemoveRange(items);
+                var ids = items.Select(n => n.ID).ToArray();
+                var widgets = WidgetBasePartService.Get(m => ids.Contains(m.ID)).ToArray();
+                WidgetBasePartService.RemoveRange(widgets);
+            });
         }
 
 
@@ -135,7 +169,12 @@ namespace ZKEACMS.Widget
             }
             return result;
         }
-
+        /// <summary>
+        /// Display the specified widget.
+        /// </summary>
+        /// <returns>The widget view model</returns>
+        /// <param name="widget">Widget.</param>
+        /// <param name="actionContext">Action context.</param>
         public virtual WidgetViewModelPart Display(WidgetBase widget, ActionContext actionContext)
         {
             return widget.ToWidgetViewModelPart();
@@ -144,6 +183,10 @@ namespace ZKEACMS.Widget
         #region PartDrive
         public virtual void AddWidget(WidgetBase widget)
         {
+            if (widget.PartialView.IsNullOrWhiteSpace())
+            {
+                throw new Exception("Widget.PartialView must be specified!");
+            }
             Add((T)widget);
         }
 
@@ -155,6 +198,10 @@ namespace ZKEACMS.Widget
 
         public virtual void UpdateWidget(WidgetBase widget)
         {
+            if (widget.PartialView.IsNullOrWhiteSpace())
+            {
+                throw new Exception("Widget.PartialView must be specified!");
+            }
             Update((T)widget);
         }
         #endregion
@@ -183,6 +230,7 @@ namespace ZKEACMS.Widget
             var widget = new WidgetPackageInstaller(ApplicationContext.HostingEnvironment).Install(pack);
             if (widget != null)
             {
+                (widget as WidgetBase).Description = "Install";
                 AddWidget(widget as WidgetBase);
             }
 

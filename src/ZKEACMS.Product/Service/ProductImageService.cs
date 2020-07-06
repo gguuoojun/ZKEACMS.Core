@@ -12,19 +12,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ZKEACMS.Product.Service
 {
-    public class ProductImageService : ServiceBase<ProductImage>, IProductImageService
+    public class ProductImageService : ServiceBase<ProductImage, CMSDbContext>, IProductImageService
     {
-        public ProductImageService(IApplicationContext applicationContext, ProductDbContext dbContext) : base(applicationContext, dbContext)
+        public ProductImageService(IApplicationContext applicationContext, CMSDbContext dbContext) : base(applicationContext, dbContext)
         {
         }
-
-        public override DbSet<ProductImage> CurrentDbSet
-        {
-            get
-            {
-                return (DbContext as ProductDbContext).ProductImage;
-            }
-        }
-
     }
 }

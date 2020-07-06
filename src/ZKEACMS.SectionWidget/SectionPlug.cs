@@ -1,4 +1,4 @@
-﻿/* http://www.zkea.net/ Copyright 2016 ZKEASOFT http://www.zkea.net/licenses */
+/* http://www.zkea.net/ Copyright 2016 ZKEASOFT http://www.zkea.net/licenses */
 using Easy.Mvc.Resource;
 using Easy.Mvc.Route;
 using System;
@@ -11,6 +11,8 @@ using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using System.Reflection;
 using ZKEACMS.SectionWidget.Models;
 using Easy;
+using ZKEACMS.WidgetTemplate;
+using Easy.RepositoryPattern;
 
 namespace ZKEACMS.SectionWidget
 {
@@ -56,13 +58,23 @@ namespace ZKEACMS.SectionWidget
             return null;
         }
 
-        public override IEnumerable<Type> WidgetServiceTypes()
+        public override IEnumerable<WidgetTemplateEntity> WidgetServiceTypes()
         {
-            yield return typeof(SectionWidgetService);
+            yield return new WidgetTemplateEntity<SectionWidgetService>
+            {
+                Title = "Section Widget",
+                GroupName = "1.General",
+                PartialView = "Widget.Section",
+                Thumbnail = "~/images/Widget.Section.png",
+                FormView= "SectionWidgetForm",
+                Order = 100
+            };
         }
 
         public override void ConfigureServices(IServiceCollection serviceCollection)
         {
+            serviceCollection.AddSingleton<IOnModelCreating, EntityFrameWorkModelCreating>();
+
             serviceCollection.AddTransient<ISectionGroupService, SectionGroupService>();
             serviceCollection.AddTransient<ISectionContentProviderService, SectionContentProviderService>();
             serviceCollection.AddTransient<ISectionContentService, SectionContentCallToActionService>();
@@ -79,9 +91,7 @@ namespace ZKEACMS.SectionWidget
             serviceCollection.ConfigureMetaData<SectionContentTitle, SectionContentTitleMetaData>();
             serviceCollection.ConfigureMetaData<SectionContentVideo, SectionContentVideoMetaData>();
             serviceCollection.ConfigureMetaData<SectionGroup, SectionGroupMetaData>();
-            serviceCollection.ConfigureMetaData<Models.SectionWidget, SectionWidgetMetaData>();
-
-            serviceCollection.AddDbContext<SectionDbContext>();
+            serviceCollection.ConfigureMetaData<Models.SectionWidget, SectionWidgetMetaData>();            
 
         }
 

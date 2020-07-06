@@ -2,11 +2,13 @@
  * Copyright 2016 ZKEASOFT 
  * http://www.zkea.net/licenses */
 
+using Easy;
 using Easy.Constant;
 using Easy.Extend;
 using Easy.Modules.Role;
 using Easy.Modules.User.Models;
 using Easy.Modules.User.Service;
+using Easy.Mvc;
 using Easy.Mvc.Attribute;
 using Easy.Mvc.Authorize;
 using Easy.Mvc.Controllers;
@@ -18,15 +20,23 @@ using ZKEACMS;
 
 namespace ZKEACMS.Controllers
 {
-    [DefaultAuthorize(Policy = PermissionKeys.ViewUser)]
+    [DefaultAuthorize]
     public class UserController : BasicController<UserEntity, string, IUserService>
     {
         private IApplicationContextAccessor _applicationContextAccessor;
-        public UserController(IUserService userService, IApplicationContextAccessor applicationContextAccessor)
+        private ILocalize _localize;
+        public UserController(IUserService userService, IApplicationContextAccessor applicationContextAccessor, ILocalize localize)
             : base(userService)
         {
             _applicationContextAccessor = applicationContextAccessor;
+            _localize = localize;
         }
+        [DefaultAuthorize(Policy = PermissionKeys.ViewUser)]
+        public override IActionResult Index()
+        {
+            return base.Index();
+        }
+        [DefaultAuthorize(Policy = PermissionKeys.ManageUser)]
         public override IActionResult Create()
         {
             var entity = new UserEntity();
@@ -34,7 +44,7 @@ namespace ZKEACMS.Controllers
             entity.Roles = new List<UserRoleRelation>();
             return View(entity);
         }
-        [HttpPost,DefaultAuthorize(Policy = PermissionKeys.ManageUser)]
+        [HttpPost, DefaultAuthorize(Policy = PermissionKeys.ManageUser)]
         public override IActionResult Create(UserEntity entity)
         {
             try
@@ -81,8 +91,18 @@ namespace ZKEACMS.Controllers
                 Service.Update(logOnUser);
                 return RedirectToAction("Logout", "Account", new { returnurl = "~/Account/Login" });
             }
-            ViewBag.Message = "‘≠√‹¬Î¥ÌŒÛ";
+            ViewBag.Message = _localize.Get("Current password error.");
             return View();
+        }
+
+        [HttpPost]
+        public override IActionResult Delete(string id)
+        {
+            if (id == _applicationContextAccessor.Current.CurrentUser.UserID)
+            {
+                return Json(new AjaxResult { Status = AjaxStatus.Error, Message = _localize.Get("Can not delete yourself.") });
+            }
+            return base.Delete(id);
         }
     }
 }

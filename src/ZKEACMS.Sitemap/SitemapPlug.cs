@@ -9,6 +9,8 @@ using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Generic;
 using ZKEACMS.Sitemap.Service;
+using ZKEACMS.Sitemap.Service.SiteUrlProviders;
+using ZKEACMS.WidgetTemplate;
 
 namespace ZKEACMS.Sitemap
 {
@@ -20,7 +22,14 @@ namespace ZKEACMS.Sitemap
             {
                 RouteName = "Sitemap",
                 Template = "sitemap.xml",
-                Defaults = new { controller = "Sitemap", action = "Index" },
+                Defaults = new { controller = "sitemap", action = "index" },
+                Priority = 11
+            };
+            yield return new RouteDescriptor
+            {
+                RouteName = "Robots",
+                Template = "robots.txt",
+                Defaults = new { controller = "robots", action = "index" },
                 Priority = 11
             };
         }
@@ -45,13 +54,14 @@ namespace ZKEACMS.Sitemap
             return null;
         }
 
-        public override IEnumerable<Type> WidgetServiceTypes()
+        public override IEnumerable<WidgetTemplateEntity> WidgetServiceTypes()
         {
             return null;
         }
 
         public override void ConfigureServices(IServiceCollection serviceCollection)
         {
+            serviceCollection.AddDbContextOptions<SitemapDbContext>();
             serviceCollection.AddDbContext<SitemapDbContext>();
             serviceCollection.AddTransient<ISitemapService, SitemapService>();
             serviceCollection.AddTransient<ISiteUrlProvider, PageSiteUrlProvider>();

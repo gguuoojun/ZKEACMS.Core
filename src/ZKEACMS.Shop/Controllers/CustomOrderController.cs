@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -44,6 +44,10 @@ namespace ZKEACMS.Shop.Controllers
                 Order = order,
                 OrderItems = _orderItemService.Get(m => m.OrderId == Id)
             });
+        }
+        public IActionResult Failed()
+        {
+            return View();
         }
         public IActionResult Remove(string Id)
         {

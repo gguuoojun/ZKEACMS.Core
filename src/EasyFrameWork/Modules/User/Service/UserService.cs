@@ -5,32 +5,44 @@ using Easy.Modules.User.Models;
 using Easy.RepositoryPattern;
 using Microsoft.EntityFrameworkCore;
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Security.Cryptography;
 
 namespace Easy.Modules.User.Service
 {
-    public class UserService : ServiceBase<UserEntity>, IUserService
+    public class UserService : ServiceBase<UserEntity, EasyDbContext>, IUserService
     {
-        public UserService(IApplicationContext applicationContext, EasyDbContext easyDbContext) : base(applicationContext, easyDbContext)
+        private ILocalize _localize;
+        public UserService(IApplicationContext applicationContext, 
+            ILocalize localize,
+            EasyDbContext easyDbContext) 
+            : base(applicationContext, easyDbContext)
         {
+            _localize = localize;
         }
         public override DbSet<UserEntity> CurrentDbSet
         {
             get
             {
-                return (DbContext as EasyDbContext).Users;
+                return DbContext.Users;
             }
         }
         public override UserEntity Get(params object[] primaryKey)
         {
-            var userEntity = base.Get(primaryKey);
+            var userEntity = CurrentDbSet.AsNoTracking().Where(m => m.UserID == primaryKey[0].ToString()).FirstOrDefault();
             if (userEntity != null)
             {
-                userEntity.Roles = (DbContext as EasyDbContext).UserRoleRelation.Where(m => m.UserID == userEntity.UserID).ToList();
+                userEntity.Roles = DbContext.UserRoleRelation.AsNoTracking().Where(m => m.UserID == userEntity.UserID).ToList();
             }
             return userEntity;
         }
+        public override IQueryable<UserEntity> Get()
+        {
+            return CurrentDbSet.AsNoTracking();
+        }
+
         private string ProtectPassWord(string passWord)
         {
             if (passWord.IsNotNullAndWhiteSpace())
@@ -43,7 +55,7 @@ namespace Easy.Modules.User.Service
             }
             return passWord;
         }
-        public override void Add(UserEntity item)
+        public override ServiceResult<UserEntity> Add(UserEntity item)
         {
             if (item.UserID.IsNullOrEmpty() && item.Email.IsNotNullAndWhiteSpace())
             {
@@ -63,16 +75,32 @@ namespace Easy.Modules.User.Service
             }
             if (Get(item.UserID) != null)
             {
-                throw new Exception($"用户 {item.UserID} 已存在");
+                throw new Exception(_localize.Get("{0} is already exists").FormatWith(item.UserID));
             }
             if (item.Email.IsNotNullAndWhiteSpace() && Count(m => m.Email == item.Email && m.UserTypeCD == item.UserTypeCD) > 0)
             {
-                throw new Exception($"邮件地址 {item.Email} 已被使用");
+                throw new Exception(_localize.Get("{0} is already exists").FormatWith(item.Email));
             }
-            base.Add(item);
+            var result = base.Add(item);
+            if (!result.HasViolation)
+            {
+                if (item.Roles != null)
+                {
+                    item.Roles.Each(m =>
+                    {
+                        m.UserID = item.UserID;
+                        if (m.ActionType == ActionType.Create)
+                        {
+                            DbContext.UserRoleRelation.Add(m);
+                        }
+                    });
+                }
+                DbContext.SaveChanges();
+            }
+            return result;
         }
 
-        public override void Update(UserEntity item, bool saveImmediately = true)
+        public override ServiceResult<UserEntity> Update(UserEntity item)
         {
             if (item.PassWordNew.IsNotNullAndWhiteSpace())
             {
@@ -80,13 +108,30 @@ namespace Easy.Modules.User.Service
             }
             if (item.Roles != null)
             {
-                item.Roles.Where(m => m.ActionType == ActionType.Delete).Each(m => (DbContext as EasyDbContext).UserRoleRelation.Remove(m));
+                item.Roles.Each(m =>
+                {
+                    m.UserID = item.UserID;
+                    if (m.ActionType == ActionType.Create)
+                    {
+                        DbContext.UserRoleRelation.Add(m);
+                    }
+                    else if (m.ID > 0 && m.ActionType == ActionType.Delete)
+                    {
+                        DbContext.UserRoleRelation.Remove(m);
+                    }
+                    else if (m.ActionType == ActionType.Update)
+                    {
+                        DbContext.UserRoleRelation.Update(m);
+                    }
+                });
             }
             if (item.Email.IsNotNullAndWhiteSpace() && Count(m => m.UserID != item.UserID && m.Email == item.Email && m.UserTypeCD == item.UserTypeCD) > 0)
             {
-                throw new Exception($"邮件地址 {item.Email} 已被使用");
+                throw new Exception(_localize.Get("{0} is already exists").FormatWith(item.Email));
             }
-            base.Update(item, saveImmediately);
+
+            var result = base.Update(item);
+            return result;
         }
 
         public UserEntity Login(string userID, string passWord, UserType userType, string ip)
@@ -130,6 +175,28 @@ namespace Easy.Modules.User.Service
                 }
             }
             return false;
+        }
+
+        public override void Remove(UserEntity item)
+        {
+            BeginTransaction(() =>
+            {
+                DbContext.UserRoleRelation.RemoveRange(DbContext.UserRoleRelation.Where(m => m.UserID == item.UserID));
+                base.Remove(item);
+            });
+        }
+        public override void Remove(Expression<Func<UserEntity, bool>> filter)
+        {
+            RemoveRange(Get(filter).ToArray());
+        }
+        public override void RemoveRange(params UserEntity[] items)
+        {
+            BeginTransaction(() =>
+            {
+                string[] userIds = items.Select(m => m.UserID).ToArray();
+                DbContext.UserRoleRelation.RemoveRange(DbContext.UserRoleRelation.Where(m => userIds.Contains(m.UserID)));
+                base.RemoveRange(items);
+            });
         }
     }
 }

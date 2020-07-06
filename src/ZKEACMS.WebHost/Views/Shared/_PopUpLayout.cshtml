@@ -1,4 +1,4 @@
-﻿@{
+@{
     Layout = null;
     Script.Reqiured("admin").AtFoot();
     Style.Reqiured("bootStrap").AtHead();
@@ -9,19 +9,29 @@
 
 <html>
 <head>
-    <meta name="viewport" content="width=device-width" />
     <title>@ViewBag.Title</title>
+    @if (ApplicationContext.As<CMSApplicationContext>().OuterChainPicture)
+    {
+        <meta name="referrer" content="same-origin" />
+    }
+    @if (ApplicationContext.As<CMSApplicationContext>().EnableResponsiveDesign)
+    {
+        <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no,maximum-scale=1.0" />
+    }
     @StyleAtHead()
     @ScriptAtHead()
 </head>
 <body>
-<div style="padding:10px 10px 40px;">
-   @RenderBody()    
-    <div class="popUpToolBar">
-        <input id="confirm" type="button" value="确认" class="btn btn-primary btn-sm"/>
-        <input type="button" value="取消" class="btn btn-default btn-sm"/>
+    <div style="padding:10px 10px @(ViewBag.ShowToolBar == null?"40px":"10px");">
+        @RenderBody()
+        @if (ViewBag.ShowToolBar == null)
+        {
+            <div class="popUpToolBar">
+                <input id="confirm" type="button" value="@L("OK")" class="btn btn-primary btn-sm" />
+                <input type="button" value="@L("Cancel")" class="btn btn-default btn-sm" />
+            </div>
+        }
     </div>
-</div>
     @StyleAtFoot()
     @ScriptAtFoot()
     <script type="text/javascript">

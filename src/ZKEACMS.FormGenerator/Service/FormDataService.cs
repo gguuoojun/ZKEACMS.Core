@@ -1,4 +1,4 @@
-﻿using Easy.RepositoryPattern;
+using Easy.RepositoryPattern;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -15,23 +15,41 @@ using DocumentFormat.OpenXml.Spreadsheet;
 using DocumentFormat.OpenXml;
 using System.IO;
 using Easy.DataTransfer;
+using ZKEACMS.FormGenerator.Service.Validator;
+using Easy.Notification;
 
 namespace ZKEACMS.FormGenerator.Service
 {
-    public class FormDataService : ServiceBase<FormData>, IFormDataService
+    public class FormDataService : ServiceBase<FormData, CMSDbContext>, IFormDataService
     {
         private readonly IFormService _formService;
         private readonly IFormDataItemService _formDataItemService;
-        public FormDataService(IApplicationContext applicationContext, FormGeneratorDbContext dbContext, IFormService formService, IFormDataItemService formDataItemService) : base(applicationContext, dbContext)
+        private readonly IEnumerable<IFormDataValidator> _formDataValidators;
+        private readonly INotificationManager _notificationManager;
+        private readonly ILocalize _localize;
+        public FormDataService(IApplicationContext applicationContext,
+            CMSDbContext dbContext,
+            IFormService formService,
+            IFormDataItemService formDataItemService,
+            IEnumerable<IFormDataValidator> formDataValidators,
+            INotificationManager notificationManager,
+            ILocalize localize) :
+            base(applicationContext, dbContext)
         {
             _formService = formService;
             _formDataItemService = formDataItemService;
+            _formDataValidators = formDataValidators;
+            _notificationManager = notificationManager;
+            _localize = localize;
         }
 
-        public override DbSet<FormData> CurrentDbSet => (DbContext as FormGeneratorDbContext).FormData;
-        public override void Add(FormData item)
+        public override ServiceResult<FormData> Add(FormData item)
         {
-            base.Add(item);
+            var result = base.Add(item);
+            if (result.HasViolation)
+            {
+                return result;
+            }
             if (item.Datas != null)
             {
                 foreach (var data in item.Datas)
@@ -40,6 +58,7 @@ namespace ZKEACMS.FormGenerator.Service
                     _formDataItemService.Add(data);
                 }
             }
+            return result;
         }
         public override FormData Get(params object[] primaryKey)
         {
@@ -79,10 +98,16 @@ namespace ZKEACMS.FormGenerator.Service
             }
             return formData;
         }
-        public void SaveForm(IFormCollection formCollection, string formId)
+        public ServiceResult<FormData> SaveForm(IFormCollection formCollection, string formId)
         {
+            var result = new ServiceResult<FormData>();
             var form = _formService.Get(formId);
-            var formData = new FormData { FormId = formId, Datas = new List<FormDataItem>() };
+            if (form == null)
+            {
+                result.RuleViolations.Add(new RuleViolation("Form", "Form not found!"));
+                return result;
+            }
+            var formData = new FormData { FormId = formId, Datas = new List<FormDataItem>(), Form = form };
             Regex regex = new Regex(@"(\w+)\[(\d+)\]");
 
             foreach (var item in formCollection.Keys)
@@ -105,6 +130,14 @@ namespace ZKEACMS.FormGenerator.Service
                             dataitem.FieldValue = option.DisplayText;
                         }
                     }
+                    foreach (var validator in _formDataValidators)
+                    {
+                        if (!validator.Validate(field, dataitem, out string message))
+                        {
+                            result.RuleViolations.Add(new RuleViolation(field.DisplayName, message));
+                            return result;
+                        }
+                    }
                     formData.Datas.Add(dataitem);
                 }
             }
@@ -112,12 +145,23 @@ namespace ZKEACMS.FormGenerator.Service
             {
                 formData.Title = formData.Datas.FirstOrDefault().FieldValue;
             }
-            Add(formData);
+            result = Add(formData);
+            if (!result.HasViolation && form.NotificationReceiver.IsNotNullAndWhiteSpace())
+            {
+                _notificationManager.Send(new RazorEmailNotice
+                {
+                    Subject = _localize.Get("New form data"),
+                    To = form.NotificationReceiver.Split(new char[] { '\r', '\n', ',', ';' }, StringSplitOptions.RemoveEmptyEntries),
+                    Model = Get(formData.ID),
+                    TemplatePath = "~/wwwroot/Plugins/ZKEACMS.FormGenerator/EmailTemplates/FormDataNotification.cshtml"
+                });
+            }
+            return result;
         }
-        public override void Remove(FormData item, bool saveImmediately = true)
+        public override void Remove(FormData item)
         {
             _formDataItemService.Remove(m => m.FormDataId == item.ID);
-            base.Remove(item, saveImmediately);
+            base.Remove(item);
         }
 
         public MemoryStream Export(int id)
@@ -145,7 +189,7 @@ namespace ZKEACMS.FormGenerator.Service
 
         public MemoryStream ExportByForm(string formId)
         {
-            using(ExcelGenerator excel = new ExcelGenerator())
+            using (ExcelGenerator excel = new ExcelGenerator())
             {
                 var form = _formService.Get(formId);
                 var formDatas = Get(m => m.FormId == formId);

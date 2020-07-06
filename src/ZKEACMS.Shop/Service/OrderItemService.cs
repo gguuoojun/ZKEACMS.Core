@@ -1,4 +1,4 @@
-﻿using Easy.RepositoryPattern;
+using Easy.RepositoryPattern;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,12 +9,11 @@ using Easy;
 
 namespace ZKEACMS.Shop.Service
 {
-    public class OrderItemService : ServiceBase<OrderItem>, IOrderItemService
+    public class OrderItemService : ServiceBase<OrderItem, CMSDbContext>, IOrderItemService
     {
-        public OrderItemService(IApplicationContext applicationContext, OrderDbContext dbContext) : base(applicationContext, dbContext)
+        public OrderItemService(IApplicationContext applicationContext, CMSDbContext dbContext) : base(applicationContext, dbContext)
         {
         }
-
-        public override DbSet<OrderItem> CurrentDbSet => (DbContext as OrderDbContext).OrderItem;
+        
     }
 }

@@ -4,29 +4,25 @@ using Easy.RepositoryPattern;
 using Easy;
 using Microsoft.EntityFrameworkCore;
 using System;
+using System.Linq;
 
 namespace ZKEACMS.SectionWidget.Service
 {
-    public class SectionContentVideoService : ServiceBase<SectionContentVideo>, ISectionContentService
+    public class SectionContentVideoService : ServiceBase<SectionContentVideo, CMSDbContext>, ISectionContentService
     {
-        public SectionContentVideoService(IApplicationContext applicationContext, SectionDbContext dbContext) : base(applicationContext, dbContext)
+        public SectionContentVideoService(IApplicationContext applicationContext, CMSDbContext dbContext) : base(applicationContext, dbContext)
         {
-        }
-
-        public override DbSet<SectionContentVideo> CurrentDbSet
-        {
-            get
-            {
-                return (DbContext as SectionDbContext).SectionContentVideo;
-            }
-        }
+        }     
 
         public SectionContentBase.Types ContentType
         {
             get { return SectionContentBase.Types.Video; }
         }
 
-
+        public override IQueryable<SectionContentVideo> Get()
+        {
+            return CurrentDbSet.AsNoTracking();
+        }
 
         public void AddContent(SectionContent content)
         {

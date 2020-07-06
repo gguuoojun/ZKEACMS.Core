@@ -1,4 +1,4 @@
-FROM microsoft/aspnetcore:2.0
+FROM mcr.microsoft.com/dotnet/core/aspnet:3.0
 ARG source
 WORKDIR /zkeacms
 EXPOSE 80

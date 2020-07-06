@@ -14,10 +14,11 @@ using ZKEACMS.Article.Service;
 using ZKEACMS.MetaData;
 using ZKEACMS.Widget;
 using ZKEACMS.Extend;
+using Easy.RepositoryPattern;
 
 namespace ZKEACMS.Article.Models
 {
-    [Table("ArticleListWidget")]
+    [DataTable("ArticleListWidget")]
     public class ArticleListWidget : BasicWidget
     {
         public int ArticleTypeID { get; set; }
@@ -31,20 +32,14 @@ namespace ZKEACMS.Article.Models
         {
             base.ViewConfigure();
 
-            ViewConfig(m => m.ArticleTypeID).AsDropDownList().Order(NextOrder())
-                .DataSource(() =>
-                {
-                    var articleTypeService = ServiceLocator.GetService<IArticleTypeService>();
-                    return articleTypeService.Get().ToDictionary(m => m.ID.ToString(), m => m.Title);
-                })
-                .Required().AddClass("select").AddProperty("data-url", "/admin/ArticleType/Select");
+            ViewConfig(m => m.ArticleTypeID).AsDropDownList().Order(NextOrder()).SetTemplate("ArticleTypeTree").Required();
 
             ViewConfig(m => m.DetailPageUrl).AsTextBox().Order(NextOrder()).PageSelector();
 
             ViewConfig(m => m.IsPageable).AsCheckBox().Order(NextOrder());
             ViewConfig(m => m.PageSize).AsTextBox().Order(NextOrder()).Range(1, 50);
 
-            ViewConfig(m => m.PartialView).AsDropDownList().Order(NextOrder()).DataSource(SourceType.Dictionary);
+            ViewConfig(m => m.PartialView).AsDropDownList().Order(NextOrder()).DataSource(SourceType.Dictionary).AsWidgetTemplateChooser();
         }
     }
 

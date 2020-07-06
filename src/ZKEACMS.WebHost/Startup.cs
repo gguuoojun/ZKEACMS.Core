@@ -1,69 +1,61 @@
-﻿/*!
+/*!
  * http://www.zkea.net/
  * Copyright 2017 ZKEASOFT
  * 深圳市纸壳软件有限公司
  * http://www.zkea.net/licenses
  */
-
 using Easy;
+using Easy.Mvc.Plugin;
 using Easy.Mvc.Resource;
-using Easy.RepositoryPattern;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc.Razor.RuntimeCompilation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using System;
+using ZKEACMS.DbConnectionPool;
 
 namespace ZKEACMS.WebHost
 {
     public class Startup
     {
-        public Startup(IHostingEnvironment env)
+        public Startup(IConfiguration configuration)
         {
-            var builder = new ConfigurationBuilder()
-             .SetBasePath(env.ContentRootPath)
-             .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
-             .AddJsonFile($"appsettings.{env.EnvironmentName}.json", optional: true)
-             .AddEnvironmentVariables();
-
-            if (env.IsDevelopment())
-            {
-                builder.AddApplicationInsightsSettings(developerMode: true);
-            }
-            HostingEnvironment = env;
-            Configuration = builder.Build();
+            Configuration = configuration;
         }
-
-        public IHostingEnvironment HostingEnvironment { get; }
-        public IConfigurationRoot Configuration { get; }
+        public IConfiguration Configuration { get; }
 
         public void ConfigureServices(IServiceCollection services)
         {
             services.ConfigureResource<DefaultResourceManager>();
-            services.AddApplicationInsightsTelemetry(Configuration);
-
-            services.TryAddTransient<IOnDatabaseConfiguring, EntityFrameWorkConfigure>();
-
-            services.UseZKEACMS(Configuration, HostingEnvironment);
+            services.TryAddEnumerable(ServiceDescriptor.Singleton<IConfigureOptions<MvcRazorRuntimeCompilationOptions>, CompilationOptionsSetup>());
+            Type mvcBuilderType = typeof(Builder);
+            Easy.Mvc.Plugin.PluginActivtor.LoadedPlugins.Add(new PluginDescriptor
+            {
+                Assembly = mvcBuilderType.Assembly,
+                PluginType = mvcBuilderType
+            });
+            services.UseZKEACMS(Configuration);
         }
 
-        public void Configure(IApplicationBuilder app, IHostingEnvironment env, ILoggerFactory loggerFactory)
+        public void Configure(IApplicationBuilder app, IWebHostEnvironment env, ILoggerFactory loggerFactory, IHttpContextAccessor httpContextAccessor)
         {
-            loggerFactory.AddConsole(Configuration.GetSection("Logging"));
-            loggerFactory.AddDebug();
-
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
-                app.UseBrowserLink();
             }
             else
             {
-                loggerFactory.UseFileLog(env);
                 app.UseExceptionHandler("/Error");
+                app.UseStatusCodePagesWithReExecute("/Error/Code/{0}");
             }
-            app.UseZKEACMS(env);
+            loggerFactory.UseFileLog(env, app.ApplicationServices.GetService<IHttpContextAccessor>());
+            app.UseZKEACMS(env, httpContextAccessor);
         }
     }
 }
